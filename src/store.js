@@ -1,9 +1,39 @@
 import { generateId } from './utils.js';
 
 // ============================================================
-// STORE — Vercel API Data Layer (Neon Postgres)
+// STORE — Optimistic UI Layer (Neon API + LocalStorage)
 // ============================================================
+// Questo approccio mantiene l'interfaccia istantanea e sincrona 
+// senza dover riscrivere le centinaia di file della UI.
 
+const STORE_KEY = 'rental_elite_data';
+const allowedTables = [
+  'properties', 'rooms', 'guests', 'contracts', 
+  'costs_header', 'costs_details', 'invoice_headers', 
+  'invoice_details', 'payments'
+];
+
+function getData() {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+  } catch { return {}; }
+}
+
+function setData(data) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+}
+
+function getCollection(name) {
+  return getData()[name] || [];
+}
+
+function setCollection(name, items) {
+  const data = getData();
+  data[name] = items;
+  setData(data);
+}
+
+// Chiamate al Backend Vercel
 const api = async (table, method = 'GET', data = null, id = null) => {
   let url = `/api/crud?table=${table}`;
   if (id && method !== 'POST') url += `&id=${id}`;
@@ -14,160 +44,215 @@ const api = async (table, method = 'GET', data = null, id = null) => {
   };
   if (data && method === 'POST') options.body = JSON.stringify(data);
   
-  const res = await fetch(url, options);
-  if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
-  return await res.json();
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.error('API Sync Error:', err);
+    // In un'app reale qui potremmo salvare le richieste fallite in una coda offline
+  }
 };
 
 export const store = {
-  // Properties
-  getProperties: () => api('properties'),
-  getProperty: (id) => api('properties', 'GET', null, id),
-  saveProperty: async (item) => {
-    if (!item.id) item.id = generateId();
-    return api('properties', 'POST', item);
+  // Sincronizzazione Iniziale
+  isInitialized: async () => {
+    try {
+      console.log('Sincronizzazione con Neon DB in corso...');
+      const allData = {};
+      await Promise.all(allowedTables.map(async (table) => {
+        allData[table] = await api(table);
+      }));
+      setData(allData);
+      console.log('Sincronizzazione completata!');
+      return true;
+    } catch (e) {
+      console.error('Errore durante la sincronizzazione:', e);
+      // Fallback: usiamo i dati locali se offline
+      return !!localStorage.getItem(STORE_KEY);
+    }
   },
-  deleteProperty: (id) => api('properties', 'DELETE', null, id),
+
+  // Properties
+  getProperties: () => getCollection('properties'),
+  getProperty: (id) => getCollection('properties').find(p => p.id === id),
+  saveProperty: (item) => {
+    const items = getCollection('properties');
+    const idx = items.findIndex(p => p.id === item.id);
+    if (!item.id) item.id = generateId();
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item, createdAt: new Date().toISOString() });
+    setCollection('properties', items);
+    api('properties', 'POST', item); // Sync background
+  },
+  deleteProperty: (id) => {
+    setCollection('properties', getCollection('properties').filter(p => p.id !== id));
+    api('properties', 'DELETE', null, id);
+  },
 
   // Rooms
-  getRooms: () => api('rooms'),
-  getRoomsByProperty: async (propertyId) => {
-    const res = await fetch(`/api/crud?table=rooms&propertyId=${propertyId}`);
-    return res.json();
-  },
-  getRoom: (id) => api('rooms', 'GET', null, id),
-  saveRoom: async (item) => {
+  getRooms: () => getCollection('rooms'),
+  getRoomsByProperty: (propertyId) => getCollection('rooms').filter(r => r.propertyId === propertyId),
+  getRoom: (id) => getCollection('rooms').find(r => r.id === id),
+  saveRoom: (item) => {
+    const items = getCollection('rooms');
+    const idx = items.findIndex(r => r.id === item.id);
     if (!item.id) item.id = generateId();
-    return api('rooms', 'POST', item);
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item, createdAt: new Date().toISOString() });
+    setCollection('rooms', items);
+    api('rooms', 'POST', item);
   },
-  deleteRoom: (id) => api('rooms', 'DELETE', null, id),
+  deleteRoom: (id) => {
+    setCollection('rooms', getCollection('rooms').filter(r => r.id !== id));
+    api('rooms', 'DELETE', null, id);
+  },
 
   // Guests
-  getGuests: () => api('guests'),
-  getGuest: (id) => api('guests', 'GET', null, id),
-  saveGuest: async (item) => {
+  getGuests: () => getCollection('guests'),
+  getGuest: (id) => getCollection('guests').find(g => g.id === id),
+  saveGuest: (item) => {
+    const items = getCollection('guests');
+    const idx = items.findIndex(g => g.id === item.id);
     if (!item.id) item.id = generateId();
-    return api('guests', 'POST', item);
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item, createdAt: new Date().toISOString() });
+    setCollection('guests', items);
+    api('guests', 'POST', item);
   },
-  deleteGuest: (id) => api('guests', 'DELETE', null, id),
+  deleteGuest: (id) => {
+    setCollection('guests', getCollection('guests').filter(g => g.id !== id));
+    api('guests', 'DELETE', null, id);
+  },
 
   // Contracts
-  getContracts: () => api('contracts'),
-  getContract: (id) => api('contracts', 'GET', null, id),
-  getContractsByGuest: async (guestId) => {
-    const res = await fetch(`/api/crud?table=contracts&guestId=${guestId}`);
-    return res.json();
-  },
-  getContractsByRoom: async (roomId) => {
-    const res = await fetch(`/api/crud?table=contracts&roomId=${roomId}`);
-    return res.json();
-  },
-  getActiveContractForRoom: async (roomId) => {
-    const res = await fetch(`/api/crud?table=contracts&roomId=${roomId}`);
-    const contracts = await res.json();
+  getContracts: () => getCollection('contracts'),
+  getContract: (id) => getCollection('contracts').find(c => c.id === id),
+  getContractsByGuest: (guestId) => getCollection('contracts').filter(c => c.guestId === guestId),
+  getContractsByRoom: (roomId) => getCollection('contracts').filter(c => c.roomId === roomId),
+  getActiveContractForRoom: (roomId) => {
     const today = new Date().toISOString().split('T')[0];
-    return contracts.find(c => c.status === 'activo' && new Date(c.startDate).toISOString().split('T')[0] <= today && new Date(c.endDate).toISOString().split('T')[0] >= today);
+    return getCollection('contracts').find(c => c.roomId === roomId && c.status === 'activo' && c.startDate <= today && c.endDate >= today);
   },
-  saveContract: async (item) => {
+  saveContract: (item) => {
+    const items = getCollection('contracts');
+    const idx = items.findIndex(c => c.id === item.id);
     if (!item.id) item.id = generateId();
-    return api('contracts', 'POST', item);
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item, createdAt: new Date().toISOString() });
+    setCollection('contracts', items);
+    api('contracts', 'POST', item);
   },
-  deleteContract: (id) => api('contracts', 'DELETE', null, id),
+  deleteContract: (id) => {
+    setCollection('contracts', getCollection('contracts').filter(c => c.id !== id));
+    api('contracts', 'DELETE', null, id);
+  },
 
   // Costs Header
-  getCostsHeaders: () => api('costs_header'),
-  getCostHeader: (id) => api('costs_header', 'GET', null, id),
-  getCostsByProperty: async (propertyId) => {
-    const res = await fetch(`/api/crud?table=costs_header&propertyId=${propertyId}`);
-    return res.json();
-  },
-  getCostsByPropertyAndPeriod: async (propertyId, month, year) => {
-    const res = await fetch(`/api/crud?table=costs_header&propertyId=${propertyId}&month=${month}&year=${year}`);
-    return res.json();
-  },
-  saveCostHeader: async (item) => {
+  getCostsHeaders: () => getCollection('costs_header'),
+  getCostHeader: (id) => getCollection('costs_header').find(c => c.id === id),
+  getCostsByProperty: (propertyId) => getCollection('costs_header').filter(c => c.propertyId === propertyId),
+  getCostsByPropertyAndPeriod: (propertyId, month, year) => getCollection('costs_header').filter(c => c.propertyId === propertyId && c.month === month && c.year === year),
+  saveCostHeader: (item) => {
+    const items = getCollection('costs_header');
+    const idx = items.findIndex(c => c.id === item.id);
     if (!item.id) item.id = generateId();
-    return api('costs_header', 'POST', item);
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item, createdAt: new Date().toISOString() });
+    setCollection('costs_header', items);
+    api('costs_header', 'POST', item);
   },
-  deleteCostHeader: (id) => api('costs_header', 'DELETE', null, id),
+  deleteCostHeader: (id) => {
+    setCollection('costs_header', getCollection('costs_header').filter(c => c.id !== id));
+    api('costs_header', 'DELETE', null, id);
+  },
 
   // Costs Details
-  getCostsDetails: () => api('costs_details'),
-  getCostDetailsByCostId: async (costHeaderId) => {
-    const res = await fetch(`/api/crud?table=costs_details&costHeaderId=${costHeaderId}`);
-    return res.json();
-  },
-  getCostDetailsByInvoice: async (invoiceId) => {
-    const res = await fetch(`/api/crud?table=costs_details&invoiceId=${invoiceId}`);
-    return res.json();
-  },
-  saveCostDetail: async (item) => {
+  getCostsDetails: () => getCollection('costs_details'),
+  getCostDetailsByCostId: (costHeaderId) => getCollection('costs_details').filter(d => d.costHeaderId === costHeaderId),
+  getCostDetailsByInvoice: (invoiceId) => getCollection('costs_details').filter(d => d.invoiceId === invoiceId),
+  saveCostDetail: (item) => {
+    const items = getCollection('costs_details');
+    const idx = items.findIndex(d => d.id === item.id);
     if (!item.id) item.id = generateId();
-    return api('costs_details', 'POST', item);
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item });
+    setCollection('costs_details', items);
+    api('costs_details', 'POST', item);
   },
-  deleteCostDetail: (id) => api('costs_details', 'DELETE', null, id),
+  deleteCostDetail: (id) => {
+    setCollection('costs_details', getCollection('costs_details').filter(d => d.id !== id));
+    api('costs_details', 'DELETE', null, id);
+  },
 
   // Invoice Headers
-  getInvoiceHeaders: () => api('invoice_headers'),
-  getInvoiceHeader: (id) => api('invoice_headers', 'GET', null, id),
-  getInvoicesByGuest: async (guestId) => {
-    const res = await fetch(`/api/crud?table=invoice_headers&guestId=${guestId}`);
-    return res.json();
-  },
-  getInvoicesByRoom: async (roomId) => {
-    const res = await fetch(`/api/crud?table=invoice_headers&roomId=${roomId}`);
-    return res.json();
-  },
-  getInvoicesByStatus: async (status) => {
-    const res = await fetch(`/api/crud?table=invoice_headers&status=${status}`);
-    return res.json();
-  },
-  saveInvoiceHeader: async (item) => {
+  getInvoiceHeaders: () => getCollection('invoice_headers'),
+  getInvoiceHeader: (id) => getCollection('invoice_headers').find(i => i.id === id),
+  getInvoicesByGuest: (guestId) => getCollection('invoice_headers').filter(i => i.guestId === guestId),
+  getInvoicesByRoom: (roomId) => getCollection('invoice_headers').filter(i => i.roomId === roomId),
+  getInvoicesByStatus: (status) => getCollection('invoice_headers').filter(i => i.status === status),
+  saveInvoiceHeader: (item) => {
+    const items = getCollection('invoice_headers');
+    const idx = items.findIndex(i => i.id === item.id);
     if (!item.id) item.id = generateId();
-    return api('invoice_headers', 'POST', item);
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item, createdAt: new Date().toISOString() });
+    setCollection('invoice_headers', items);
+    api('invoice_headers', 'POST', item);
   },
-  deleteInvoiceHeader: (id) => api('invoice_headers', 'DELETE', null, id),
+  deleteInvoiceHeader: (id) => {
+    setCollection('invoice_headers', getCollection('invoice_headers').filter(i => i.id !== id));
+    api('invoice_headers', 'DELETE', null, id);
+  },
 
   // Invoice Details
-  getInvoiceDetails: () => api('invoice_details'),
-  getInvoiceDetailsByInvoice: async (invoiceId) => {
-    const res = await fetch(`/api/crud?table=invoice_details&invoiceId=${invoiceId}`);
-    return res.json();
-  },
-  saveInvoiceDetail: async (item) => {
+  getInvoiceDetails: () => getCollection('invoice_details'),
+  getInvoiceDetailsByInvoice: (invoiceId) => getCollection('invoice_details').filter(d => d.invoiceId === invoiceId),
+  saveInvoiceDetail: (item) => {
+    const items = getCollection('invoice_details');
+    const idx = items.findIndex(d => d.id === item.id);
     if (!item.id) item.id = generateId();
-    return api('invoice_details', 'POST', item);
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item });
+    setCollection('invoice_details', items);
+    api('invoice_details', 'POST', item);
   },
-  deleteInvoiceDetail: (id) => api('invoice_details', 'DELETE', null, id),
-  deleteInvoiceDetailsByInvoice: async (invoiceId) => {
-    // Vercel CRUD doesn't support deleting by field natively, we'll fetch then delete one by one
-    const details = await store.getInvoiceDetailsByInvoice(invoiceId);
-    await Promise.all(details.map(d => store.deleteInvoiceDetail(d.id)));
+  deleteInvoiceDetail: (id) => {
+    setCollection('invoice_details', getCollection('invoice_details').filter(d => d.id !== id));
+    api('invoice_details', 'DELETE', null, id);
+  },
+  deleteInvoiceDetailsByInvoice: (invoiceId) => {
+    const details = store.getInvoiceDetailsByInvoice(invoiceId);
+    details.forEach(d => store.deleteInvoiceDetail(d.id));
   },
 
   // Payments
-  getPayments: () => api('payments'),
-  getPaymentsByInvoice: async (invoiceId) => {
-    const res = await fetch(`/api/crud?table=payments&invoiceId=${invoiceId}`);
-    return res.json();
-  },
-  savePayment: async (item) => {
+  getPayments: () => getCollection('payments'),
+  getPaymentsByInvoice: (invoiceId) => getCollection('payments').filter(p => p.invoiceId === invoiceId),
+  savePayment: (item) => {
+    const items = getCollection('payments');
+    const idx = items.findIndex(p => p.id === item.id);
     if (!item.id) item.id = generateId();
-    return api('payments', 'POST', item);
+    if (idx >= 0) items[idx] = { ...items[idx], ...item };
+    else items.push({ ...item, createdAt: new Date().toISOString() });
+    setCollection('payments', items);
+    api('payments', 'POST', item);
   },
-  deletePayment: (id) => api('payments', 'DELETE', null, id),
+  deletePayment: (id) => {
+    setCollection('payments', getCollection('payments').filter(p => p.id !== id));
+    api('payments', 'DELETE', null, id);
+  },
 
   // Total paid for an invoice
-  getTotalPaidForInvoice: async (invoiceId) => {
-    const payments = await store.getPaymentsByInvoice(invoiceId);
-    return payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+  getTotalPaidForInvoice: (invoiceId) => {
+    return getCollection('payments').filter(p => p.invoiceId === invoiceId).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
   },
 
-  isInitialized: async () => true,
-  clearAll: async () => {} // not supported anymore
+  clearAll: () => {
+    localStorage.removeItem(STORE_KEY);
+  }
 };
 
 export async function seedDemoData() {
-  // Seeding not implemented for remote DB
-  console.log('Seed demo data non più supportato.');
+  console.log('Seed demo data disabilitato in produzione.');
 }
