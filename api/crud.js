@@ -4,9 +4,21 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const allowedTables = [
   'properties', 'rooms', 'guests', 'contracts', 
-  'costs_header', 'costs_details', 'invoice_headers', 
-  'invoice_details', 'payments'
+  'invoice_headers', 'invoice_details', 'payments',
+  'costs_header', 'costs_details'
 ];
+
+const tableColumns = {
+  properties: ['id', 'name', 'address', 'city', 'description', 'totalRooms', 'createdAt'],
+  rooms: ['id', 'propertyId', 'name', 'floor', 'size_sqm', 'monthlyRent', 'status', 'createdAt'],
+  guests: ['id', 'firstName', 'lastName', 'email', 'phone', 'documentType', 'documentNumber', 'nationality', 'dateOfBirth', 'notes', 'createdAt'],
+  contracts: ['id', 'guestId', 'roomId', 'propertyId', 'startDate', 'endDate', 'monthlyRent', 'deposit', 'franchise', 'status', 'notes', 'createdAt'],
+  costs_header: ['id', 'propertyId', 'costType', 'amount', 'month', 'year', 'description', 'createdAt'],
+  costs_details: ['id', 'costHeaderId', 'guestId', 'roomId', 'contractId', 'amount', 'status', 'invoiceId'],
+  invoice_headers: ['id', 'invoiceNumber', 'guestId', 'roomId', 'contractId', 'propertyId', 'month', 'year', 'periodStart', 'periodEnd', 'issueDate', 'dueDate', 'subtotal', 'tax', 'total', 'status', 'notes', 'createdAt'],
+  invoice_details: ['id', 'invoiceId', 'description', 'quantity', 'unitPrice', 'total'],
+  payments: ['id', 'invoiceId', 'amount', 'paymentDate', 'paymentMethod', 'reference', 'notes', 'createdAt']
+};
 
 export default async function handler(req, res) {
   const table = req.query.table;
@@ -39,7 +51,17 @@ export default async function handler(req, res) {
         return res.status(200).json(rows);
       }
     } else if (req.method === 'POST') {
-      const data = req.body;
+      const rawData = req.body;
+      const columns = tableColumns[table] || [];
+      
+      // Filter out any key that does not exist in the database table schema
+      const data = {};
+      for (const col of columns) {
+        if (rawData[col] !== undefined) {
+          data[col] = rawData[col];
+        }
+      }
+
       const keys = Object.keys(data);
       const values = Object.values(data);
       const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');

@@ -9,8 +9,8 @@ import { generateId } from './utils.js';
 const STORE_KEY = 'rental_elite_data';
 const allowedTables = [
   'properties', 'rooms', 'guests', 'contracts', 
-  'costs_header', 'costs_details', 'invoice_headers', 
-  'invoice_details', 'payments'
+  'invoice_headers', 'invoice_details', 'payments',
+  'costs_header', 'costs_details'
 ];
 
 function getData() {
