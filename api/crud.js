@@ -20,6 +20,29 @@ const tableColumns = {
   payments: ['id', 'invoiceId', 'amount', 'paymentDate', 'paymentMethod', 'reference', 'notes', 'createdAt']
 };
 
+// Columns that require a specific type and cannot accept empty strings
+const dateColumns = new Set([
+  'dateOfBirth', 'startDate', 'endDate', 'periodStart', 'periodEnd',
+  'issueDate', 'dueDate', 'paymentDate'
+]);
+const numericColumns = new Set([
+  'totalRooms', 'floor', 'size_sqm', 'monthlyRent', 'deposit', 'franchise',
+  'amount', 'month', 'year', 'subtotal', 'tax', 'total', 'quantity', 'unitPrice'
+]);
+
+function sanitizeValue(col, val) {
+  if (val === '' || val === undefined) {
+    return null;
+  }
+  if (dateColumns.has(col) && typeof val === 'string' && val.trim() === '') {
+    return null;
+  }
+  if (numericColumns.has(col) && typeof val === 'string' && val.trim() === '') {
+    return null;
+  }
+  return val;
+}
+
 export default async function handler(req, res) {
   const table = req.query.table;
   if (!allowedTables.includes(table)) {
@@ -55,10 +78,11 @@ export default async function handler(req, res) {
       const columns = tableColumns[table] || [];
       
       // Filter out any key that does not exist in the database table schema
+      // and sanitize empty strings to null for typed columns (DATE, NUMERIC)
       const data = {};
       for (const col of columns) {
         if (rawData[col] !== undefined) {
-          data[col] = rawData[col];
+          data[col] = sanitizeValue(col, rawData[col]);
         }
       }
 
