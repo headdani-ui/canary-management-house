@@ -59,11 +59,30 @@ export const store = {
   isInitialized: async () => {
     try {
       console.log('Sincronizzazione con Neon DB in corso...');
-      const allData = {};
+      const cloudData = {};
       await Promise.all(allowedTables.map(async (table) => {
-        allData[table] = await api(table);
+        cloudData[table] = await api(table) || [];
       }));
-      setData(allData);
+      
+      const localData = getData();
+      const mergedData = {};
+      
+      for (const table of allowedTables) {
+        const localItems = localData[table] || [];
+        const cloudItems = cloudData[table] || [];
+        
+        const cloudMap = new Map(cloudItems.map(item => [item.id, item]));
+        const mergedItems = [...cloudItems];
+        
+        for (const localItem of localItems) {
+          if (!cloudMap.has(localItem.id)) {
+            mergedItems.push(localItem);
+          }
+        }
+        mergedData[table] = mergedItems;
+      }
+      
+      setData(mergedData);
       console.log('Sincronizzazione completata!');
       return true;
     } catch (e) {
@@ -246,6 +265,55 @@ export const store = {
   // Total paid for an invoice
   getTotalPaidForInvoice: (invoiceId) => {
     return getCollection('payments').filter(p => p.invoiceId === invoiceId).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+  },
+
+  exportData: () => {
+    const data = getData();
+    return JSON.stringify(data, null, 2);
+  },
+
+  importData: (jsonData) => {
+    try {
+      const data = JSON.parse(jsonData);
+      setData(data);
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  },
+
+  syncLocalToCloud: async (onProgress) => {
+    const data = getData();
+    let total = 0;
+    let current = 0;
+
+    for (const table of allowedTables) {
+      if (Array.isArray(data[table])) {
+        total += data[table].length;
+      }
+    }
+
+    if (total === 0) {
+      if (onProgress) onProgress(0, 0, 'Completado');
+      return;
+    }
+
+    for (const table of allowedTables) {
+      if (Array.isArray(data[table])) {
+        for (const item of data[table]) {
+          try {
+            await api(table, 'POST', item);
+          } catch (err) {
+            console.error(`Error syncing ${table} id ${item.id}:`, err);
+          }
+          current++;
+          if (onProgress) {
+            onProgress(current, total, table);
+          }
+        }
+      }
+    }
   },
 
   clearAll: () => {

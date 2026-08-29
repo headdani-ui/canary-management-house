@@ -13,6 +13,7 @@ import { renderContracts } from './pages/contracts.js';
 import { renderCosts } from './pages/costs.js';
 import { renderInvoices } from './pages/invoices.js';
 import { renderCalendar } from './pages/calendar.js';
+import { renderDatabasePage } from './pages/database.js';
 
 // Initialize demo data on first run
 seedDemoData();
@@ -67,10 +68,33 @@ registerRoute('/contracts', requireAuth(renderContracts));
 registerRoute('/costs', requireAuth(renderCosts));
 registerRoute('/invoices', requireAuth(renderInvoices));
 registerRoute('/calendar', requireAuth(renderCalendar));
+registerRoute('/database', requireAuth(renderDatabasePage));
 
 // --- Boot ---
-if (isAuthenticated()) {
-  initRouter('/dashboard');
-} else {
-  initRouter('/login');
+async function boot() {
+  const app = document.getElementById('app');
+  if (app) {
+    app.innerHTML = `
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:var(--bg-darkest); color:var(--text-primary); font-family:var(--font-display);">
+        <div style="font-size:var(--text-xl); font-weight:800; color:var(--neon); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:var(--space-4); display:flex; align-items:center; gap:var(--space-2); animation: pulse 2s ease-in-out infinite;">
+          <span class="dot" style="width:8px; height:8px; background:var(--neon); border-radius:50%; box-shadow:0 0 10px var(--neon);"></span>
+          Canary Management House
+        </div>
+        <div style="font-size:var(--text-sm); color:var(--text-secondary); display:flex; align-items:center; gap:8px;">
+          <span class="material-icons-outlined" style="font-size:18px; color:var(--neon);">sync</span>
+          Sincronizando con el cloud...
+        </div>
+      </div>
+    `;
+  }
+  
+  await store.isInitialized();
+  
+  if (isAuthenticated()) {
+    initRouter('/dashboard');
+  } else {
+    initRouter('/login');
+  }
 }
+
+boot();

@@ -34,6 +34,8 @@ export function renderSidebar() {
     { path: '/invoices', icon: 'payments', label: 'Facturación' },
     { section: 'Planificación' },
     { path: '/calendar', icon: 'calendar_month', label: 'Calendario' },
+    { section: 'Administración' },
+    { path: '/database', icon: 'settings_backup_restore', label: 'Copia y Sincro' },
   ];
 
   let alertsHtml = '';
