@@ -215,22 +215,20 @@ function renderPropertyDetail(propertyId) {
         </thead>
         <tbody>
           ${rooms.map(r => {
-            const activeContract = store.getActiveContractForRoom(r.id);
-            const guest = activeContract ? store.getGuest(activeContract.guestId) : null;
-            return `<tr>
-              <td style="font-weight:600">${r.name}</td>
-              <td>${r.isRentable !== false ? '<span class="text-neon" style="font-weight:700">Sí</span>' : '<span class="text-muted">No</span>'}</td>
-              <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.features || '—'}</td>
-              <td>${r.floor || '—'}</td>
-              <td>${r.size_sqm || '—'}</td>
-              <td>${r.isRentable !== false ? formatCurrency(r.monthlyRent) : '—'}</td>
-              <td>${r.isRentable !== false ? (activeContract ? '<span class="badge badge-active">Ocupada</span>' : '<span class="badge badge-available">Disponible</span>') : '<span class="text-muted">—</span>'}</td>
-              <td>${guest ? `<a href="#/guests/${guest.id}">${guest.firstName} ${guest.lastName}</a>` : '<span class="text-muted">—</span>'}</td>
-              <td>
-                <button class="btn btn-sm btn-ghost edit-room-btn" data-id="${r.id}"><span class="material-icons-outlined">edit</span></button>
-              </td>
-            </tr>`;
-          }).join('')}
+  const activeContract = store.getActiveContractForRoom(r.id);
+  const guest = activeContract ? store.getGuest(activeContract.guestId) : null;
+  return '<tr>' +
+    '<td style="font-weight:600">' + r.name + '</td>' +
+    '<td>' + (r.isRentable !== false ? '<span class="text-neon" style="font-weight:700">Sí</span>' : '<span class="text-muted">No</span>') + '</td>' +
+    '<td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (r.features || '—') + '</td>' +
+    '<td>' + (r.floor || '—') + '</td>' +
+    '<td>' + (r.size_sqm || '—') + '</td>' +
+    '<td>' + (r.isRentable !== false ? formatCurrency(r.monthlyRent) : '—') + '</td>' +
+    '<td>' + (r.isRentable !== false ? (activeContract ? '<span class="badge badge-active">Ocupada</span>' : '<span class="badge badge-available">Disponible</span>') : '<span class="text-muted">—</span>') + '</td>' +
+    '<td>' + (guest ? '<a href="#/guests/' + guest.id + '">' + guest.firstName + ' ' + guest.lastName + '</a>' : '<span class="text-muted">—</span>') + '</td>' +
+    '<td><button class="btn btn-sm btn-ghost edit-room-btn" data-id="' + r.id + '"><span class="material-icons-outlined">edit</span></button></td>' +
+    '</tr>';
+}).join('')}
         </tbody>
       </table>
       ${rooms.length === 0 ? '<div class="table-empty"><span class="material-icons-outlined">bed</span><div>No hay habitaciones registradas</div></div>' : ''}
