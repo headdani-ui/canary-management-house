@@ -50,7 +50,7 @@ export function renderLogin() {
               </label>
               <a href="#" style="font-size:var(--text-xs)">¿Olvidó su contraseña?</a>
             </div>
-            <button type="submit" class="btn btn-primary btn-block btn-lg">Iniciar Sesión</button>
+            <button type="button" id="login-btn" class="btn btn-primary btn-block btn-lg">Iniciar Sesión</button>
           </form>
           <p style="text-align:center;margin-top:var(--space-6);font-size:var(--text-xs);color:var(--text-tertiary)">
             Demo: admin@rentaelite.com / admin123
@@ -60,13 +60,29 @@ export function renderLogin() {
     </div>
   `;
 
-  document.getElementById('login-form').addEventListener('submit', (e) => {
-    e.preventDefault();
+  function doLogin() {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     if (email && password) {
       localStorage.setItem('rental_elite_auth', 'true');
-      navigate('/dashboard');
+      window.location.hash = '/dashboard';
     }
-  });
+  }
+
+  const form = document.getElementById('login-form');
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      doLogin();
+    });
+  }
+
+  const btn = document.getElementById('login-btn');
+  if (btn) {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      doLogin();
+    });
+  }
 }
