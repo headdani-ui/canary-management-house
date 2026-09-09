@@ -171,8 +171,8 @@ function renderGuestDetail(guestId) {
 
   const contracts = store.getContractsByGuest(guestId);
   const invoices = store.getInvoicesByGuest(guestId);
-  const totalInvoiced = invoices.reduce((s, i) => s + i.total, 0);
-  const totalPaid = invoices.reduce((s, i) => s + store.getTotalPaidForInvoice(i.id), 0);
+  const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total || 0), 0);
+  const totalPaid = invoices.reduce((s, i) => s + Number(store.getTotalPaidForInvoice(i.id) || 0), 0);
 
   if (titleArea) titleArea.innerHTML = `<h1>${guest.firstName} ${guest.lastName}</h1><div class="breadcrumb"><a href="#/guests">Huéspedes</a> / <span>${guest.firstName} ${guest.lastName}</span></div>`;
 

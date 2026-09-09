@@ -19,8 +19,8 @@ export function renderInvoices(params) {
   const properties = store.getProperties();
 
   // Summary
-  const totalInvoiced = invoices.reduce((s, i) => s + i.total, 0);
-  const totalPaid = invoices.reduce((s, i) => s + store.getTotalPaidForInvoice(i.id), 0);
+  const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total || 0), 0);
+  const totalPaid = invoices.reduce((s, i) => s + Number(store.getTotalPaidForInvoice(i.id) || 0), 0);
   const totalPending = totalInvoiced - totalPaid;
   const countPaid = invoices.filter(i => i.status === 'pagada').length;
   const countPending = invoices.filter(i => i.status === 'pendiente' || i.status === 'parcial').length;
@@ -211,7 +211,7 @@ function showGenerateInvoiceModal() {
 
       // Cost allocation
       const periodCosts = store.getCostsByPropertyAndPeriod(contract.propertyId, month, year).filter(c => c.chargeToGuests);
-      const totalCosts = periodCosts.reduce((s, c) => s + c.amount, 0);
+      const totalCosts = periodCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
       if (totalCosts > 0 && numRooms > 0) {
         const { perRoom } = calculateCostAllocation(totalCosts, contract.franchise || 0, numRooms);
         if (perRoom > 0) {
@@ -226,7 +226,7 @@ function showGenerateInvoiceModal() {
         }
       }
 
-      const subtotal = details.reduce((s, d) => s + d.total, 0);
+      const subtotal = details.reduce((s, d) => s + Number(d.total || 0), 0);
       const tax = 0; // IGIC not calculated
       const total = subtotal;
 
@@ -268,8 +268,8 @@ function renderInvoiceDetail(invoiceId) {
   const property = store.getProperty(inv.propertyId);
   const details = store.getInvoiceDetailsByInvoice(inv.id);
   const payments = store.getPaymentsByInvoice(inv.id);
-  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  const balance = inv.total - totalPaid;
+  const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const balance = Number(inv.total || 0) - totalPaid;
 
   if (titleArea) titleArea.innerHTML = `<h1>${inv.invoiceNumber}</h1><div class="breadcrumb"><a href="#/invoices">Facturación</a> / <span>${inv.invoiceNumber}</span></div>`;
 
@@ -393,7 +393,7 @@ function renderInvoiceDetail(invoiceId) {
       // Update invoice status
       const newTotalPaid = store.getTotalPaidForInvoice(inv.id);
       let newStatus = 'pendiente';
-      if (newTotalPaid >= inv.total) newStatus = 'pagada';
+      if (newTotalPaid >= Number(inv.total || 0)) newStatus = 'pagada';
       else if (newTotalPaid > 0) newStatus = 'parcial';
       store.saveInvoiceHeader({ ...inv, status: newStatus });
 

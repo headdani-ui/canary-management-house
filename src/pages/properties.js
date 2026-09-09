@@ -40,7 +40,7 @@ export function renderProperties(params) {
           ${properties.map(p => {
             const pRooms = rooms.filter(r => r.propertyId === p.id);
             const occupied = pRooms.filter(r => !!store.getActiveContractForRoom(r.id)).length;
-            const monthlyRev = pRooms.filter(r => !!store.getActiveContractForRoom(r.id)).reduce((s, r) => s + r.monthlyRent, 0);
+            const monthlyRev = pRooms.filter(r => !!store.getActiveContractForRoom(r.id)).reduce((s, r) => s + Number(r.monthlyRent || 0), 0);
             return `<tr data-id="${p.id}" class="row-clickable">
               <td style="font-weight:600;color:var(--text-primary)">${p.name}</td>
               <td>${p.city}</td>

@@ -24,11 +24,19 @@ export function renderDashboard() {
   const payments = store.getPayments();
   const guests = store.getGuests();
 
+  // Default date filter: 1st of January of current year to current day (today)
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+  const currentDay = String(now.getDate()).padStart(2, '0');
+  const defaultDateFrom = `${currentYear}-01-01`;
+  const defaultDateTo = `${currentYear}-${currentMonth}-${currentDay}`;
+
   // Filter state
   let selectedPropIds = properties.map(p => p.id);
-  let dateFrom = '';
-  let dateTo = '';
-  let activePreset = 'all';
+  let dateFrom = defaultDateFrom;
+  let dateTo = defaultDateTo;
+  let activePreset = 'this_year';
 
   // Helper date parsing
   function parseDateParts(dateStr) {
@@ -223,9 +231,9 @@ export function renderDashboard() {
           <!-- Date Range Picker -->
           <div class="date-range-container">
             <span class="material-icons-outlined" style="font-size:16px;color:var(--neon)">calendar_today</span>
-            <input type="date" id="dash-date-from" title="Fecha inicio" />
+            <input type="date" id="dash-date-from" value="${dateFrom}" title="Fecha inicio" />
             <span class="date-range-separator">→</span>
-            <input type="date" id="dash-date-to" title="Fecha fin" />
+            <input type="date" id="dash-date-to" value="${dateTo}" title="Fecha fin" />
           </div>
 
           <!-- Reset button -->
@@ -236,10 +244,10 @@ export function renderDashboard() {
 
         <!-- Date Presets -->
         <div class="filter-presets">
-          <button type="button" class="preset-pill active" data-preset="all">Todo</button>
+          <button type="button" class="preset-pill" data-preset="all">Todo</button>
           <button type="button" class="preset-pill" data-preset="this_month">Este mes</button>
           <button type="button" class="preset-pill" data-preset="last_month">Mes anterior</button>
-          <button type="button" class="preset-pill" data-preset="this_year">Este año</button>
+          <button type="button" class="preset-pill active" data-preset="this_year">Este año</button>
           <button type="button" class="preset-pill" data-preset="last_30_days">Últimos 30 días</button>
         </div>
       </div>
@@ -625,8 +633,10 @@ export function renderDashboard() {
         dateTo = `${y}-${m}-${lastDay}`;
       } else if (preset === 'this_year') {
         const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
         dateFrom = `${y}-01-01`;
-        dateTo = `${y}-12-31`;
+        dateTo = `${y}-${m}-${d}`;
       } else if (preset === 'last_30_days') {
         const past = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -646,13 +656,13 @@ export function renderDashboard() {
     content.querySelectorAll('.dash-prop-check').forEach(cb => cb.checked = true);
     updatePropLabel();
 
-    dateFrom = '';
-    dateTo = '';
-    if (dateFromInput) dateFromInput.value = '';
-    if (dateToInput) dateToInput.value = '';
+    dateFrom = defaultDateFrom;
+    dateTo = defaultDateTo;
+    if (dateFromInput) dateFromInput.value = defaultDateFrom;
+    if (dateToInput) dateToInput.value = defaultDateTo;
 
     clearPresetPillActive();
-    content.querySelector('.preset-pill[data-preset="all"]')?.classList.add('active');
+    content.querySelector('.preset-pill[data-preset="this_year"]')?.classList.add('active');
 
     updateDashboardViews();
   });

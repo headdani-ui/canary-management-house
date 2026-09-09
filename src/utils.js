@@ -7,7 +7,8 @@ export function generateId() {
 }
 
 export function formatCurrency(amount) {
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
+  const num = Number(amount) || 0;
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(num);
 }
 
 export function formatDate(dateStr) {
@@ -100,6 +101,7 @@ export function costTypeLabel(type) {
 }
 
 export function calculateProRataRent(monthlyRent, startDate, endDate, month, year) {
+  const rent = Number(monthlyRent) || 0;
   const totalDays = daysInMonth(month, year);
   const periodStart = new Date(year, month - 1, 1);
   const periodEnd = new Date(year, month, 0);
@@ -113,12 +115,15 @@ export function calculateProRataRent(monthlyRent, startDate, endDate, month, yea
 
   const activeDays = Math.floor((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
 
-  if (activeDays >= totalDays) return monthlyRent;
-  return Math.round((monthlyRent / totalDays) * activeDays * 100) / 100;
+  if (activeDays >= totalDays) return rent;
+  return Math.round((rent / totalDays) * activeDays * 100) / 100;
 }
 
 export function calculateCostAllocation(totalCosts, franchise, numRooms) {
-  const net = Math.max(0, totalCosts - franchise);
-  const perRoom = numRooms > 0 ? Math.round((net / numRooms) * 100) / 100 : 0;
+  const costs = Number(totalCosts) || 0;
+  const fran = Number(franchise) || 0;
+  const rooms = Number(numRooms) || 0;
+  const net = Math.max(0, costs - fran);
+  const perRoom = rooms > 0 ? Math.round((net / rooms) * 100) / 100 : 0;
   return { net, perRoom };
 }
