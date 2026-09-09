@@ -93,12 +93,22 @@ export const store = {
   },
 
   // Properties
-  getProperties: () => getCollection('properties'),
+  getProperties: (includeInactive = false) => {
+    const items = getCollection('properties');
+    if (includeInactive) return items;
+    return items.filter(p => p.active !== false);
+  },
   getProperty: (id) => getCollection('properties').find(p => p.id === id),
   saveProperty: (item) => {
     const items = getCollection('properties');
     const idx = items.findIndex(p => p.id === item.id);
     if (!item.id) item.id = generateId();
+    if (item.active === undefined) item.active = true;
+    if (item.purchasePrice !== undefined && item.purchasePrice !== null && item.purchasePrice !== '') {
+      item.purchasePrice = Number(item.purchasePrice);
+    } else {
+      item.purchasePrice = null;
+    }
     if (idx >= 0) items[idx] = { ...items[idx], ...item };
     else items.push({ ...item, createdAt: new Date().toISOString() });
     setCollection('properties', items);

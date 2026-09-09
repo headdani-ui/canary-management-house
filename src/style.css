@@ -1075,7 +1075,7 @@ tbody td:first-child {
   color: var(--blue-accent);
 }
 
-.badge-never {
+.badge-never, .badge-disabled {
   background: rgba(112, 112, 112, 0.15);
   color: var(--text-tertiary);
 }

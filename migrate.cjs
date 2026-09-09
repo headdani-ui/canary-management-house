@@ -19,6 +19,8 @@ CREATE TABLE properties (
   city VARCHAR(255),
   description TEXT,
   "totalRooms" INT,
+  "purchasePrice" NUMERIC,
+  active BOOLEAN DEFAULT true,
   "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -9,7 +9,7 @@ const allowedTables = [
 ];
 
 const tableColumns = {
-  properties: ['id', 'name', 'address', 'city', 'description', 'totalRooms', 'createdAt'],
+  properties: ['id', 'name', 'address', 'city', 'description', 'totalRooms', 'purchasePrice', 'active', 'createdAt'],
   rooms: ['id', 'propertyId', 'name', 'floor', 'size_sqm', 'monthlyRent', 'status', 'createdAt'],
   guests: ['id', 'firstName', 'lastName', 'email', 'phone', 'documentType', 'documentNumber', 'nationality', 'dateOfBirth', 'notes', 'createdAt'],
   contracts: ['id', 'guestId', 'roomId', 'propertyId', 'startDate', 'endDate', 'monthlyRent', 'deposit', 'franchise', 'status', 'notes', 'createdAt'],
@@ -27,7 +27,7 @@ const dateColumns = new Set([
 ]);
 const numericColumns = new Set([
   'totalRooms', 'floor', 'size_sqm', 'monthlyRent', 'deposit', 'franchise',
-  'amount', 'month', 'year', 'subtotal', 'tax', 'total', 'quantity', 'unitPrice'
+  'amount', 'month', 'year', 'subtotal', 'tax', 'total', 'quantity', 'unitPrice', 'purchasePrice'
 ]);
 
 function sanitizeValue(col, val) {

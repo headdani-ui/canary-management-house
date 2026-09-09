@@ -16,7 +16,7 @@ export function renderProperties(params) {
   if (titleArea) titleArea.innerHTML = `<h1>Propiedades</h1><div class="breadcrumb"><span>Canary Management House</span> / Base de Datos de Propiedades</div>`;
 
   const content = document.getElementById('page-content');
-  const properties = store.getProperties();
+  const properties = store.getProperties(true); // Include all for filtering
   const rooms = store.getRooms();
 
   content.innerHTML = `
@@ -27,6 +27,11 @@ export function renderProperties(params) {
             <span class="material-icons-outlined">search</span>
             <input type="text" id="property-search" placeholder="Buscar propiedad..." />
           </div>
+          <select class="table-filter" id="property-status-filter">
+            <option value="active" selected>Solo Activas</option>
+            <option value="disabled">Deshabilitadas</option>
+            <option value="all">Todas las propiedades</option>
+          </select>
         </div>
         <button class="btn btn-primary" id="add-property-btn">
           <span class="material-icons-outlined">add</span> Nueva Propiedad
@@ -34,20 +39,23 @@ export function renderProperties(params) {
       </div>
       <table>
         <thead>
-          <tr><th>Propiedad</th><th>Ciudad</th><th>Dirección</th><th>Habitaciones</th><th>Ocupación</th><th>Ingresos/Mes</th></tr>
+          <tr><th>Propiedad</th><th>Ciudad</th><th>Dirección</th><th>Habitaciones</th><th>Precio Compra</th><th>Ocupación</th><th>Ingresos/Mes</th><th>Estado</th></tr>
         </thead>
         <tbody id="properties-tbody">
           ${properties.map(p => {
             const pRooms = rooms.filter(r => r.propertyId === p.id);
             const occupied = pRooms.filter(r => !!store.getActiveContractForRoom(r.id)).length;
             const monthlyRev = pRooms.filter(r => !!store.getActiveContractForRoom(r.id)).reduce((s, r) => s + Number(r.monthlyRent || 0), 0);
-            return `<tr data-id="${p.id}" class="row-clickable">
+            const isActive = p.active !== false;
+            return `<tr data-id="${p.id}" class="row-clickable" data-status="${isActive ? 'active' : 'disabled'}">
               <td style="font-weight:600;color:var(--text-primary)">${p.name}</td>
               <td>${p.city}</td>
               <td>${p.address}</td>
               <td>${pRooms.length}</td>
+              <td style="font-weight:600">${p.purchasePrice ? formatCurrency(p.purchasePrice) : '—'}</td>
               <td><span class="badge ${occupied === pRooms.length && pRooms.length > 0 ? 'badge-active' : 'badge-pending'}">${occupied}/${pRooms.length}</span></td>
               <td>${formatCurrency(monthlyRev)}</td>
+              <td><span class="badge ${isActive ? 'badge-active' : 'badge-disabled'}">${isActive ? 'Activa' : 'Deshabilitada'}</span></td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -56,13 +64,21 @@ export function renderProperties(params) {
     </div>
   `;
 
-  // Search
-  document.getElementById('property-search')?.addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase();
+  // Search and status filtering
+  const filterProperties = () => {
+    const q = document.getElementById('property-search')?.value.toLowerCase() || '';
+    const statusFilter = document.getElementById('property-status-filter')?.value || 'active';
     document.querySelectorAll('#properties-tbody tr').forEach(row => {
-      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+      const matchText = row.textContent.toLowerCase().includes(q);
+      const rowStatus = row.dataset.status;
+      const matchStatus = statusFilter === 'all' || rowStatus === statusFilter;
+      row.style.display = matchText && matchStatus ? '' : 'none';
     });
-  });
+  };
+
+  document.getElementById('property-search')?.addEventListener('input', filterProperties);
+  document.getElementById('property-status-filter')?.addEventListener('change', filterProperties);
+  filterProperties();
 
   // Click row
   content.querySelectorAll('.row-clickable').forEach(row => {
@@ -90,6 +106,21 @@ function showPropertyModal(property = null) {
         <input class="form-input" id="prop-address" value="${property?.address || ''}" placeholder="Ej: Calle Triana 42" />
       </div>
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Precio de Compra (€)</label>
+        <input class="form-input" type="number" step="0.01" id="prop-purchase-price" value="${property?.purchasePrice ?? ''}" placeholder="Ej: 250000" />
+      </div>
+      <div class="form-group" style="display:flex;flex-direction:column;justify-content:center">
+        <label class="form-label form-checkbox" style="margin-top:var(--space-4)">
+          <input type="checkbox" id="prop-active" ${property ? (property.active !== false ? 'checked' : '') : 'checked'} />
+          <span>Propiedad Activa / Habilitada</span>
+        </label>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">
+          Si se desmarca, se ocultará de la lista principal y selectores.
+        </div>
+      </div>
+    </div>
     <div class="form-group">
       <label class="form-label">Descripción</label>
       <textarea class="form-textarea" id="prop-desc" placeholder="Descripción opcional">${property?.description || ''}</textarea>
@@ -105,6 +136,9 @@ function showPropertyModal(property = null) {
     const name = document.getElementById('prop-name').value.trim();
     const city = document.getElementById('prop-city').value.trim();
     const address = document.getElementById('prop-address').value.trim();
+    const purchasePriceVal = document.getElementById('prop-purchase-price').value;
+    const purchasePrice = purchasePriceVal !== '' ? parseFloat(purchasePriceVal) : null;
+    const active = document.getElementById('prop-active').checked;
     const description = document.getElementById('prop-desc').value.trim();
 
     if (!name || !city) {
@@ -115,11 +149,17 @@ function showPropertyModal(property = null) {
     store.saveProperty({
       id: property?.id || generateId(),
       name, city, address, description,
+      purchasePrice,
+      active,
       totalRooms: property?.totalRooms || 0,
     });
     closeModal();
     showToast(isEdit ? 'Propiedad actualizada' : 'Propiedad creada');
-    renderProperties([]);
+    if (location.hash.startsWith('#/properties/')) {
+      renderPropertyDetail(property.id);
+    } else {
+      renderProperties([]);
+    }
   });
 }
 
@@ -136,6 +176,7 @@ function renderPropertyDetail(propertyId) {
   const rooms = store.getRoomsByProperty(propertyId);
   const contracts = store.getContracts().filter(c => c.propertyId === propertyId);
   const occupied = rooms.filter(r => !!store.getActiveContractForRoom(r.id)).length;
+  const isActive = property.active !== false;
 
   if (titleArea) titleArea.innerHTML = `<h1>${property.name}</h1><div class="breadcrumb"><a href="#/properties">Propiedades</a> / <span>${property.name}</span></div>`;
 
@@ -148,11 +189,17 @@ function renderPropertyDetail(propertyId) {
           <div class="detail-meta">
             <span><span class="material-icons-outlined" style="font-size:16px">location_on</span>${property.address}, ${property.city}</span>
             <span><span class="material-icons-outlined" style="font-size:16px">bed</span>${rooms.length} habitaciones</span>
+            <span><span class="material-icons-outlined" style="font-size:16px">payments</span>Precio Compra: <strong>${property.purchasePrice ? formatCurrency(property.purchasePrice) : '—'}</strong></span>
             <span class="badge ${occupied === rooms.length ? 'badge-active' : 'badge-pending'}">${occupied}/${rooms.length} ocupadas</span>
+            <span class="badge ${isActive ? 'badge-active' : 'badge-disabled'}">${isActive ? 'Activa' : 'Deshabilitada'}</span>
           </div>
         </div>
       </div>
       <div style="display:flex;gap:var(--space-3)">
+        <button class="btn btn-secondary" id="toggle-prop-status-btn" style="color:${isActive ? 'var(--yellow-accent)' : 'var(--neon)'}">
+          <span class="material-icons-outlined">${isActive ? 'visibility_off' : 'visibility'}</span>
+          ${isActive ? 'Deshabilitar' : 'Habilitar'}
+        </button>
         <button class="btn btn-secondary" id="edit-property-btn"><span class="material-icons-outlined">edit</span>Editar</button>
         <button class="btn btn-primary" id="add-room-btn"><span class="material-icons-outlined">add</span>Añadir Habitación</button>
       </div>
@@ -189,6 +236,14 @@ function renderPropertyDetail(propertyId) {
       ${rooms.length === 0 ? '<div class="table-empty"><span class="material-icons-outlined">bed</span><div>No hay habitaciones registradas</div></div>' : ''}
     </div>
   `;
+
+  document.getElementById('toggle-prop-status-btn')?.addEventListener('click', () => {
+    const isCurrentlyActive = property.active !== false;
+    const newActive = !isCurrentlyActive;
+    store.saveProperty({ ...property, active: newActive });
+    showToast(newActive ? 'Propiedad habilitada' : 'Propiedad deshabilitada');
+    renderPropertyDetail(propertyId);
+  });
 
   document.getElementById('edit-property-btn')?.addEventListener('click', () => {
     showPropertyModal(property);
