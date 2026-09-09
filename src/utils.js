@@ -95,7 +95,7 @@ export function costTypeLabel(type) {
     'gas': 'Gas',
     'maintenance': 'Mantenimiento',
     'cleaning': 'Limpieza',
-    'other': 'Otro',
+    'mejora inmueble': 'Mejora Inmueble',
   };
   return map[type] || type;
 }

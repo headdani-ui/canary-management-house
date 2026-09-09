@@ -97,7 +97,9 @@ export function renderDashboard() {
       const { start, end } = getCostDates(c);
       return isInDateRange(start, end, dateFrom, dateTo);
     });
-    const totalCosts = filteredCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
+    // Exclude 'mejora inmueble' from total costs
+    const totalCosts = filteredCosts.filter(c => c.costType !== 'mejora inmueble')
+      .reduce((s, c) => s + Number(c.amount || 0), 0);
 
     // 3. Utile / Perdita (Beneficio Neto = Ricavi - Costi)
     const netProfit = totalInvoiced - totalCosts;
@@ -271,17 +273,7 @@ export function renderDashboard() {
           <div class="chart-container" id="dashboard-chart-container"></div>
         </div>
 
-        <!-- Contratos Recientes -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">
-              <span class="material-icons-outlined" style="font-size:18px;color:var(--neon);vertical-align:middle">description</span>
-              Contratos Recientes
-            </div>
-            <button class="btn btn-sm btn-secondary" onclick="location.hash='/contracts'">Ver Todos</button>
-          </div>
-          <div id="dashboard-contracts-container"></div>
-        </div>
+        <div id="property-improvement-card" class="card mt-6"></div>
       </div>
 
       <div>
@@ -425,6 +417,7 @@ export function renderDashboard() {
     const costsByMonth = months.map(m => {
       const monthCosts = costsHeaders.filter(c => {
         if (kpis.activePropIds.length > 0 && !kpis.activePropIds.includes(c.propertyId)) return false;
+        if (c.costType === 'mejora inmueble') return false;
         return c.month === m.month && c.year === m.year;
       });
       return monthCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
@@ -450,6 +443,36 @@ export function renderDashboard() {
           <div class="legend-item"><div class="legend-dot cost"></div>Costos registrados</div>
         </div>
       `;
+    }
+
+    // 2b. Render Mejora Inmueble card
+    const improvementCard = document.getElementById('property-improvement-card');
+    if (improvementCard) {
+      const visibleProps = properties.filter(p => kpis.activePropIds.length === 0 || kpis.activePropIds.includes(p.id));
+      improvementCard.innerHTML = visibleProps.map(p => {
+        const purchase = Number(p.purchasePrice || 0);
+        const propCosts = costsHeaders.filter(c => c.propertyId === p.id);
+        const mejoraSum = propCosts.filter(c => c.costType === 'mejora inmueble' && isInDateRange(getCostDates(c).start, getCostDates(c).end, dateFrom, dateTo))
+          .reduce((s, c) => s + Number(c.amount || 0), 0);
+        const otherCosts = propCosts.filter(c => c.costType !== 'mejora inmueble' && isInDateRange(getCostDates(c).start, getCostDates(c).end, dateFrom, dateTo))
+          .reduce((s, c) => s + Number(c.amount || 0), 0);
+        const revenue = payments.filter(pmt => {
+          const inv = store.getInvoiceHeader(pmt.invoiceId);
+          if (!inv) return false;
+          if (kpis.activePropIds.length > 0 && !kpis.activePropIds.includes(inv.propertyId)) return false;
+          if (inv.propertyId !== p.id) return false;
+          const { start, end } = getInvoiceDates(inv);
+          return isInDateRange(start, end, dateFrom, dateTo);
+        }).reduce((s, pmt) => s + Number(pmt.amount || 0), 0);
+        const totalValue = purchase + mejoraSum;
+        const profit = revenue - (otherCosts + mejoraSum);
+        const percent = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
+        return `<div class="card-clickable" style="padding:var(--space-4);margin-bottom:var(--space-3);background:var(--bg-surface-2);border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+                  <div style="font-weight:600;color:var(--text-primary);font-size:var(--text-sm)">${p.name}</div>
+                  <div>Valor Total: ${formatCurrency(totalValue)}</div>
+                  <div>Utile/Perdita: ${formatCurrency(profit)} (${percent}%)</div>
+                </div>`;
+      }).join('');
     }
 
     // 3. Render Contratos Recientes

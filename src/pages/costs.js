@@ -129,7 +129,7 @@ function updateCostSummary() {
   properties.forEach(p => {
     const pRooms = rooms.filter(r => r.propertyId === p.id);
     const costs = store.getCostsByProperty(p.id);
-    const total = costs.reduce((s, c) => s + Number(c.amount || 0), 0);
+    const total = costs.reduce((s, c) => s + (c.costType === 'mejora inmueble' ? 0 : Number(c.amount || 0)), 0);
     const byType = {};
     costs.forEach(c => {
       byType[c.costType] = (byType[c.costType] || 0) + Number(c.amount || 0);
