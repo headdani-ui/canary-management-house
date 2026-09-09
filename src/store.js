@@ -57,39 +57,47 @@ const api = async (table, method = 'GET', data = null, id = null) => {
 export const store = {
   // Sincronizzazione Iniziale
   isInitialized: async () => {
-    try {
-      console.log('Sincronizzazione con Neon DB in corso...');
-      const cloudData = {};
-      await Promise.all(allowedTables.map(async (table) => {
-        cloudData[table] = await api(table) || [];
-      }));
-      
-      const localData = getData();
-      const mergedData = {};
-      
-      for (const table of allowedTables) {
-        const localItems = localData[table] || [];
-        const cloudItems = cloudData[table] || [];
+    const timeout = new Promise(resolve => setTimeout(() => {
+      console.warn('Sync timeout: proceeding with local data');
+      resolve(false);
+    }, 5000));
+
+    const syncTask = (async () => {
+      try {
+        console.log('Sincronizzazione con Neon DB in corso...');
+        const cloudData = {};
+        await Promise.all(allowedTables.map(async (table) => {
+          cloudData[table] = await api(table) || [];
+        }));
         
-        const cloudMap = new Map(cloudItems.map(item => [item.id, item]));
-        const mergedItems = [...cloudItems];
+        const localData = getData();
+        const mergedData = {};
         
-        for (const localItem of localItems) {
-          if (!cloudMap.has(localItem.id)) {
-            mergedItems.push(localItem);
+        for (const table of allowedTables) {
+          const localItems = localData[table] || [];
+          const cloudItems = cloudData[table] || [];
+          
+          const cloudMap = new Map(cloudItems.map(item => [item.id, item]));
+          const mergedItems = [...cloudItems];
+          
+          for (const localItem of localItems) {
+            if (!cloudMap.has(localItem.id)) {
+              mergedItems.push(localItem);
+            }
           }
+          mergedData[table] = mergedItems;
         }
-        mergedData[table] = mergedItems;
+        
+        setData(mergedData);
+        console.log('Sincronizzazione completata!');
+        return true;
+      } catch (e) {
+        console.error('Errore durante la sincronizzazione:', e);
+        return !!localStorage.getItem(STORE_KEY);
       }
-      
-      setData(mergedData);
-      console.log('Sincronizzazione completata!');
-      return true;
-    } catch (e) {
-      console.error('Errore durante la sincronizzazione:', e);
-      // Fallback: usiamo i dati locali se offline
-      return !!localStorage.getItem(STORE_KEY);
-    }
+    })();
+
+    return Promise.race([syncTask, timeout]);
   },
 
   // Properties
