@@ -57,29 +57,42 @@ const api = async (table, method = 'GET', data = null, id = null) => {
 export const store = {
   // Sincronizzazione Iniziale
   isInitialized: async () => {
-    const timeout = new Promise(resolve => setTimeout(() => {
-      console.warn('Sync timeout: proceeding with local data');
-      resolve(false);
-    }, 5000));
+    const TIMEOUT_MS = 4000;
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    const timeoutId = setTimeout(() => {
+      console.warn('Sync timeout: annullo le richieste e procedo con i dati locali.');
+      controller.abort();
+    }, TIMEOUT_MS);
 
     const syncTask = (async () => {
       try {
         console.log('Sincronizzazione con Neon DB in corso...');
         const cloudData = {};
         await Promise.all(allowedTables.map(async (table) => {
-          cloudData[table] = await api(table) || [];
+          try {
+            const url = `/api/crud?table=${table}`;
+            const res = await fetch(url, { signal });
+            if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
+            cloudData[table] = await res.json();
+          } catch (err) {
+            if (err.name === 'AbortError') throw err; // propaga abort
+            console.error(`Sync error for ${table}:`, err);
+            cloudData[table] = [];
+          }
         }));
-        
+
         const localData = getData();
         const mergedData = {};
-        
+
         for (const table of allowedTables) {
           const localItems = localData[table] || [];
           const cloudItems = cloudData[table] || [];
-          
+
           const cloudMap = new Map(cloudItems.map(item => [item.id, item]));
           const mergedItems = [...cloudItems];
-          
+
           for (const localItem of localItems) {
             if (!cloudMap.has(localItem.id)) {
               mergedItems.push(localItem);
@@ -87,17 +100,21 @@ export const store = {
           }
           mergedData[table] = mergedItems;
         }
-        
+
         setData(mergedData);
         console.log('Sincronizzazione completata!');
         return true;
       } catch (e) {
-        console.error('Errore durante la sincronizzazione:', e);
+        if (e.name !== 'AbortError') {
+          console.error('Errore durante la sincronizzazione:', e);
+        }
         return !!localStorage.getItem(STORE_KEY);
+      } finally {
+        clearTimeout(timeoutId);
       }
     })();
 
-    return Promise.race([syncTask, timeout]);
+    return syncTask;
   },
 
   // Properties
