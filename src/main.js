@@ -88,7 +88,13 @@ async function boot() {
     `;
   }
   
-  await store.isInitialized();
+  await Promise.race([
+    store.isInitialized(),
+    new Promise(resolve => setTimeout(() => {
+      console.warn('Boot timeout (8s): avvio con dati locali.');
+      resolve(false);
+    }, 8000))
+  ]);
   
   if (isAuthenticated()) {
     initRouter('/dashboard');
