@@ -65,7 +65,7 @@ export function renderLogin() {
     const password = document.getElementById('login-password').value;
     if (email && password) {
       localStorage.setItem('rental_elite_auth', 'true');
-      window.location.hash = '/dashboard';
+      navigate('/dashboard');
     }
   }
 

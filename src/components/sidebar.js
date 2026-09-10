@@ -3,6 +3,7 @@
 // ============================================================
 import { getCurrentRoute, navigate } from '../router.js';
 import { store } from '../store.js';
+import { formatCurrency } from '../utils.js';
 
 export function renderSidebar() {
   const current = getCurrentRoute();
@@ -58,7 +59,7 @@ export function renderSidebar() {
         <div class="notification-icon danger"><span class="material-icons-outlined">warning</span></div>
         <div>
           <div class="notification-text"><strong>${inv.invoiceNumber}</strong> — ${guest?.firstName} ${guest?.lastName} pendiente</div>
-          <div class="notification-time">€${inv.total.toFixed(2)}</div>
+          <div class="notification-time">${formatCurrency(inv.total)}</div>
         </div>
       </div>`;
   });

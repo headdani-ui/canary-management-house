@@ -67,22 +67,46 @@ export const store = {
       const localData = getData();
       const mergedData = {};
       
-      for (const table of allowedTables) {
-        const localItems = localData[table] || [];
-        const cloudItems = cloudData[table] || [];
-        
-        const cloudMap = new Map(cloudItems.map(item => [item.id, item]));
-        const mergedItems = [...cloudItems];
-        
-        for (const localItem of localItems) {
-          if (!cloudMap.has(localItem.id)) {
-            mergedItems.push(localItem);
+        const numericFields = {
+          properties: ['totalRooms', 'purchasePrice'],
+          rooms: ['floor', 'monthlyRent'],
+          contracts: ['monthlyRent', 'deposit', 'franchise'],
+          costs_header: ['amount', 'month', 'year'],
+          costs_details: ['amount'],
+          invoice_headers: ['month', 'year', 'subtotal', 'tax', 'total'],
+          invoice_details: ['quantity', 'unitPrice', 'total'],
+          payments: ['amount']
+        };
+
+        const normalizeItem = (item, tableName) => {
+          if (!item || typeof item !== 'object') return item;
+          const copy = { ...item };
+          const cols = numericFields[tableName] || [];
+          for (const col of cols) {
+            if (copy[col] !== undefined && copy[col] !== null && copy[col] !== '') {
+              const num = Number(copy[col]);
+              if (!isNaN(num)) copy[col] = num;
+            }
           }
+          return copy;
+        };
+
+        for (const table of allowedTables) {
+          const localItems = (localData[table] || []).map(it => normalizeItem(it, table));
+          const cloudItems = (cloudData[table] || []).map(it => normalizeItem(it, table));
+          
+          const cloudMap = new Map(cloudItems.map(item => [item.id, item]));
+          const mergedItems = [...cloudItems];
+          
+          for (const localItem of localItems) {
+            if (!cloudMap.has(localItem.id)) {
+              mergedItems.push(localItem);
+            }
+          }
+          mergedData[table] = mergedItems;
         }
-        mergedData[table] = mergedItems;
-      }
-      
-      setData(mergedData);
+        
+        setData(mergedData);
       console.log('Sincronizzazione completata!');
       return true;
     } catch (e) {

@@ -88,18 +88,22 @@ async function boot() {
     `;
   }
   
-  await Promise.race([
-    store.isInitialized(),
-    new Promise(resolve => setTimeout(() => {
-      console.warn('Boot timeout (8s): avvio con dati locali.');
-      resolve(false);
-    }, 8000))
-  ]);
-  
-  if (isAuthenticated()) {
-    initRouter('/dashboard');
-  } else {
-    initRouter('/login');
+  try {
+    await Promise.race([
+      store.isInitialized(),
+      new Promise(resolve => setTimeout(() => {
+        console.warn('Boot timeout (8s): avvio con dati locali.');
+        resolve(false);
+      }, 8000))
+    ]);
+  } catch (err) {
+    console.error('Error during boot initialization:', err);
+  } finally {
+    if (isAuthenticated()) {
+      initRouter('/dashboard');
+    } else {
+      initRouter('/login');
+    }
   }
 }
 
