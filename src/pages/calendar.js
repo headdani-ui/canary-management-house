@@ -63,7 +63,7 @@ export function renderCalendar() {
                   </thead>
                   <tbody>
                     ${rooms.map(room => {
-                      const contracts = store.getContractsByRoom(room.id).filter(c => c.status === 'activo' || c.status === 'pendiente');
+                      const contracts = store.getContractsByRoom(room.id).filter(c => c.status !== 'cancelado');
                       return `<tr>
                         <td class="cal-room-name" style="position:sticky;left:0;background:var(--bg-surface-1);z-index:1">${room.name}</td>
                         ${Array.from({length: totalDays}, (_, i) => {
@@ -73,8 +73,11 @@ export function renderCalendar() {
                           const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                           const isToday = day === now.getDate() && currentMonth === now.getMonth() && currentYear === now.getFullYear();
 
-                          // Find contract for this day
-                          const contract = contracts.find(c => dateStr >= c.startDate && dateStr <= c.endDate);
+                          // Find contract for this day (taking into account early termination if present)
+                          const contract = contracts.find(c => {
+                            const effectiveEnd = (c.earlyTermination && c.actualEndDate) ? c.actualEndDate : c.endDate;
+                            return dateStr >= c.startDate && dateStr <= effectiveEnd;
+                          });
                           const guest = contract ? store.getGuest(contract.guestId) : null;
 
                           if (contract) {
