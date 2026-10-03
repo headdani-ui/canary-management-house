@@ -132,6 +132,7 @@ function renderFilteredInvoices(statusFilter) {
 }
 
 function showGenerateInvoiceModal() {
+  const allContracts = store.getContracts().filter(c => c && c.status !== 'cancelado');
   const now = new Date();
   let selectedMonth = now.getMonth() + 1;
   let selectedYear = now.getFullYear();
@@ -143,10 +144,30 @@ function showGenerateInvoiceModal() {
     const monthEnd = `${year}-${mStr}-${String(totalDays).padStart(2, '0')}`;
 
     return store.getContracts().filter(c => {
-      if (c.status === 'cancelado') return false;
-      const effectiveEnd = (c.earlyTermination && c.actualEndDate) ? c.actualEndDate : c.endDate;
-      return c.startDate <= monthEnd && effectiveEnd >= monthStart;
+      if (!c || c.status === 'cancelado') return false;
+      const cStart = c.startDate ? String(c.startDate).slice(0, 10) : '';
+      const rawEnd = (c.earlyTermination && c.actualEndDate) ? c.actualEndDate : c.endDate;
+      const cEnd = rawEnd ? String(rawEnd).slice(0, 10) : '9999-12-31';
+      if (!cStart) return false;
+      return cStart <= monthEnd && cEnd >= monthStart;
     });
+  }
+
+  // If currently selected month has no contracts, find the month/year of the most recent contract
+  if (allContracts.length > 0 && getEligibleContracts(selectedMonth, selectedYear).length === 0) {
+    const sorted = [...allContracts].sort((a, b) => {
+      const dateA = (a.earlyTermination && a.actualEndDate ? a.actualEndDate : a.endDate) || a.startDate || '';
+      const dateB = (b.earlyTermination && b.actualEndDate ? b.actualEndDate : b.endDate) || b.startDate || '';
+      return String(dateB).localeCompare(String(dateA));
+    });
+    if (sorted[0]) {
+      const refDate = String(sorted[0].startDate || sorted[0].endDate || '').slice(0, 10);
+      if (refDate && refDate.includes('-')) {
+        const parts = refDate.split('-');
+        selectedYear = parseInt(parts[0], 10) || selectedYear;
+        selectedMonth = parseInt(parts[1], 10) || selectedMonth;
+      }
+    }
   }
 
   function renderContractsList(month, year) {
@@ -155,33 +176,52 @@ function showGenerateInvoiceModal() {
     if (!container) return;
 
     if (contracts.length === 0) {
-      container.innerHTML = '<div style="color:var(--text-tertiary);font-size:var(--text-sm);padding:var(--space-2)">No hay contratos activos o registrados para este período.</div>';
+      container.innerHTML = '<div style="color:var(--text-tertiary);font-size:var(--text-sm);padding:var(--space-4);text-align:center;">No hay contratos activos o registrados con presencia en este período.</div>';
       return;
     }
 
     const existingInvoices = store.getInvoiceHeaders();
 
-    container.innerHTML = contracts.map(c => {
-      const guest = store.getGuest(c.guestId);
-      const room = store.getRoom(c.roomId);
-      const property = store.getProperty(c.propertyId || room?.propertyId);
-      const alreadyInvoiced = existingInvoices.some(i => i.contractId === c.id && i.month === month && i.year === year);
-      const effectiveEnd = (c.earlyTermination && c.actualEndDate) ? c.actualEndDate : c.endDate;
-      const proRata = calculateProRataRent(c.monthlyRent, c.startDate, effectiveEnd, month, year);
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-2);padding-bottom:var(--space-2);border-bottom:1px solid var(--border-subtle);font-size:var(--text-xs);color:var(--text-secondary)">
+        <label style="cursor:pointer;display:flex;align-items:center;gap:var(--space-1)">
+          <input type="checkbox" id="gen-select-all" checked /> <span>Seleccionar todos</span>
+        </label>
+        <span>${contracts.length} contrato(s) encontrado(s)</span>
+      </div>
+      <div id="gen-contracts-items">
+        ${contracts.map(c => {
+          const guest = store.getGuest(c.guestId);
+          const room = store.getRoom(c.roomId);
+          const property = store.getProperty(c.propertyId || room?.propertyId);
+          const alreadyInvoiced = existingInvoices.some(i => i.contractId === c.id && Number(i.month) === Number(month) && Number(i.year) === Number(year));
+          const rawEnd = (c.earlyTermination && c.actualEndDate) ? c.actualEndDate : c.endDate;
+          const effectiveEnd = rawEnd ? String(rawEnd).slice(0, 10) : '';
+          const startDate = c.startDate ? String(c.startDate).slice(0, 10) : '';
+          const proRata = calculateProRataRent(c.monthlyRent, startDate, effectiveEnd, month, year);
 
-      return `<label class="form-checkbox" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2);gap:var(--space-2);${alreadyInvoiced ? 'opacity:0.6;' : ''}">
-        <span style="display:flex;align-items:center;gap:var(--space-2)">
-          <input type="checkbox" value="${c.id}" ${alreadyInvoiced ? 'disabled' : 'checked'} />
-          <span>
-            <strong>${guest?.firstName || ''} ${guest?.lastName || ''}</strong> — ${property?.name ? property.name + ' / ' : ''}${room?.name || ''}
-            <span style="font-size:var(--text-xs);color:var(--text-tertiary);display:block">(${formatDate(c.startDate)} al ${formatDate(effectiveEnd)})</span>
-          </span>
-        </span>
-        <span style="white-space:nowrap;font-size:var(--text-sm);font-weight:600">
-          ${alreadyInvoiced ? '<span class="badge badge-paid">Ya facturado</span>' : formatCurrency(proRata)}
-        </span>
-      </label>`;
-    }).join('');
+          return `<label class="form-checkbox" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2);padding:var(--space-2);border-radius:var(--radius-sm);background:var(--bg-surface-2);gap:var(--space-2);${alreadyInvoiced ? 'opacity:0.6;' : ''}">
+            <span style="display:flex;align-items:center;gap:var(--space-2)">
+              <input type="checkbox" class="gen-contract-cb" value="${c.id}" ${alreadyInvoiced ? 'disabled' : 'checked'} />
+              <span>
+                <strong>${guest?.firstName || ''} ${guest?.lastName || ''}</strong> — ${property?.name ? property.name + ' / ' : ''}${room?.name || ''}
+                <span style="font-size:var(--text-xs);color:var(--text-tertiary);display:block">(${formatDate(startDate)} al ${formatDate(effectiveEnd)})</span>
+              </span>
+            </span>
+            <span style="white-space:nowrap;font-size:var(--text-sm);font-weight:600">
+              ${alreadyInvoiced ? '<span class="badge badge-paid">Ya facturado</span>' : formatCurrency(proRata)}
+            </span>
+          </label>`;
+        }).join('')}
+      </div>
+    `;
+
+    document.getElementById('gen-select-all')?.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      container.querySelectorAll('.gen-contract-cb:not(:disabled)').forEach(cb => {
+        cb.checked = isChecked;
+      });
+    });
   }
 
   const body = `
@@ -200,7 +240,7 @@ function showGenerateInvoiceModal() {
     </div>
     <div class="form-group">
       <label class="form-label">Contratos a Facturar</label>
-      <div id="gen-contracts" style="max-height:220px;overflow-y:auto;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-3)">
+      <div id="gen-contracts" style="max-height:240px;overflow-y:auto;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-3)">
       </div>
     </div>
   `;
@@ -215,8 +255,8 @@ function showGenerateInvoiceModal() {
 
   // Dynamic update on month/year change
   const updateList = () => {
-    const m = parseInt(document.getElementById('gen-month')?.value) || selectedMonth;
-    const y = parseInt(document.getElementById('gen-year')?.value) || selectedYear;
+    const m = parseInt(document.getElementById('gen-month')?.value, 10) || selectedMonth;
+    const y = parseInt(document.getElementById('gen-year')?.value, 10) || selectedYear;
     renderContractsList(m, y);
   };
 
@@ -224,10 +264,15 @@ function showGenerateInvoiceModal() {
   document.getElementById('gen-year')?.addEventListener('input', updateList);
 
   document.getElementById('gen-invoice-btn').addEventListener('click', () => {
-    const month = parseInt(document.getElementById('gen-month').value);
-    const year = parseInt(document.getElementById('gen-year').value);
-    const checkboxes = document.querySelectorAll('#gen-contracts input[type="checkbox"]:checked');
+    const month = parseInt(document.getElementById('gen-month').value, 10);
+    const year = parseInt(document.getElementById('gen-year').value, 10);
+    const checkboxes = document.querySelectorAll('#gen-contracts input.gen-contract-cb:checked');
     const contractIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (contractIds.length === 0) {
+      showToast('Seleccione al menos un contrato a facturar', 'warning');
+      return;
+    }
 
     let generated = 0;
     contractIds.forEach(contractId => {
@@ -235,17 +280,20 @@ function showGenerateInvoiceModal() {
       if (!contract) return;
 
       // Check if invoice already exists
-      const existing = store.getInvoiceHeaders().find(i => i.contractId === contractId && i.month === month && i.year === year);
+      const existing = store.getInvoiceHeaders().find(i => i.contractId === contractId && Number(i.month) === month && Number(i.year) === year);
       if (existing) return;
 
       const room = store.getRoom(contract.roomId);
-      const property = store.getProperty(contract.propertyId);
-      const rooms = store.getRoomsByProperty(contract.propertyId);
+      const propId = contract.propertyId || room?.propertyId;
+      const property = store.getProperty(propId);
+      const rooms = propId ? store.getRoomsByProperty(propId) : [];
       const numRooms = rooms.length;
 
       // Pro-rata rent (taking into account early termination if present)
-      const effectiveEndDate = (contract.earlyTermination && contract.actualEndDate) ? contract.actualEndDate : contract.endDate;
-      const rentAmount = calculateProRataRent(contract.monthlyRent, contract.startDate, effectiveEndDate, month, year);
+      const rawEnd = (contract.earlyTermination && contract.actualEndDate) ? contract.actualEndDate : contract.endDate;
+      const effectiveEndDate = rawEnd ? String(rawEnd).slice(0, 10) : '';
+      const startDate = contract.startDate ? String(contract.startDate).slice(0, 10) : '';
+      const rentAmount = calculateProRataRent(contract.monthlyRent, startDate, effectiveEndDate, month, year);
       if (rentAmount <= 0) return;
 
       const invId = generateId();
@@ -265,19 +313,21 @@ function showGenerateInvoiceModal() {
       });
 
       // Cost allocation
-      const periodCosts = store.getCostsByPropertyAndPeriod(contract.propertyId, month, year).filter(c => c.chargeToGuests);
-      const totalCosts = periodCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
-      if (totalCosts > 0 && numRooms > 0) {
-        const { perRoom } = calculateCostAllocation(totalCosts, contract.franchise || 0, numRooms);
-        if (perRoom > 0) {
-          details.push({
-            id: generateId(),
-            invoiceId: invId,
-            description: `Gastos comunes (total: €${totalCosts.toFixed(2)} - franquicia: €${(contract.franchise || 0).toFixed(2)}) / ${numRooms} hab.`,
-            quantity: 1,
-            unitPrice: perRoom,
-            total: perRoom,
-          });
+      if (propId) {
+        const periodCosts = store.getCostsByPropertyAndPeriod(propId, month, year).filter(c => c.chargeToGuests);
+        const totalCosts = periodCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
+        if (totalCosts > 0 && numRooms > 0) {
+          const { perRoom } = calculateCostAllocation(totalCosts, contract.franchise || 0, numRooms);
+          if (perRoom > 0) {
+            details.push({
+              id: generateId(),
+              invoiceId: invId,
+              description: `Gastos comunes (total: €${totalCosts.toFixed(2)} - franquicia: €${(contract.franchise || 0).toFixed(2)}) / ${numRooms} hab.`,
+              quantity: 1,
+              unitPrice: perRoom,
+              total: perRoom,
+            });
+          }
         }
       }
 
@@ -291,7 +341,7 @@ function showGenerateInvoiceModal() {
         guestId: contract.guestId,
         roomId: contract.roomId,
         contractId: contract.id,
-        propertyId: contract.propertyId,
+        propertyId: propId,
         month, year,
         periodStart: `${year}-${String(month).padStart(2, '0')}-01`,
         periodEnd: `${year}-${String(month).padStart(2, '0')}-${totalDays}`,

@@ -78,6 +78,12 @@ export const store = {
           payments: ['amount']
         };
 
+        const dateFields = [
+          'startDate', 'endDate', 'actualEndDate',
+          'periodStart', 'periodEnd', 'dateOfBirth',
+          'issueDate', 'dueDate', 'paymentDate'
+        ];
+
         const normalizeItem = (item, tableName) => {
           if (!item || typeof item !== 'object') return item;
           const copy = { ...item };
@@ -86,6 +92,11 @@ export const store = {
             if (copy[col] !== undefined && copy[col] !== null && copy[col] !== '') {
               const num = Number(copy[col]);
               if (!isNaN(num)) copy[col] = num;
+            }
+          }
+          for (const col of dateFields) {
+            if (copy[col] && typeof copy[col] === 'string' && copy[col].includes('T')) {
+              copy[col] = copy[col].split('T')[0];
             }
           }
           return copy;
@@ -184,7 +195,13 @@ export const store = {
   getContractsByRoom: (roomId) => getCollection('contracts').filter(c => c.roomId === roomId),
   getActiveContractForRoom: (roomId) => {
     const today = new Date().toISOString().split('T')[0];
-    return getCollection('contracts').find(c => c.roomId === roomId && c.status === 'activo' && c.startDate <= today && c.endDate >= today);
+    return getCollection('contracts').find(c => {
+      if (c.roomId !== roomId || c.status !== 'activo') return false;
+      const cStart = c.startDate ? String(c.startDate).slice(0, 10) : '';
+      const rawEnd = (c.earlyTermination && c.actualEndDate) ? c.actualEndDate : c.endDate;
+      const cEnd = rawEnd ? String(rawEnd).slice(0, 10) : '9999-12-31';
+      return cStart <= today && cEnd >= today;
+    });
   },
   saveContract: (item) => {
     const items = getCollection('contracts');

@@ -75,8 +75,10 @@ export function renderCalendar() {
 
                           // Find contract for this day (taking into account early termination if present)
                           const contract = contracts.find(c => {
-                            const effectiveEnd = (c.earlyTermination && c.actualEndDate) ? c.actualEndDate : c.endDate;
-                            return dateStr >= c.startDate && dateStr <= effectiveEnd;
+                            const cStart = c.startDate ? String(c.startDate).slice(0, 10) : '';
+                            const rawEnd = (c.earlyTermination && c.actualEndDate) ? c.actualEndDate : c.endDate;
+                            const cEnd = rawEnd ? String(rawEnd).slice(0, 10) : '9999-12-31';
+                            return dateStr >= cStart && dateStr <= cEnd;
                           });
                           const guest = contract ? store.getGuest(contract.guestId) : null;
 

@@ -102,18 +102,25 @@ export function costTypeLabel(type) {
 
 export function calculateProRataRent(monthlyRent, startDate, endDate, month, year) {
   const rent = Number(monthlyRent) || 0;
+  if (!rent || !startDate) return 0;
   const totalDays = daysInMonth(month, year);
-  const periodStart = new Date(year, month - 1, 1).setHours(0, 0, 0, 0);
-  const periodEnd = new Date(year, month, 0).setHours(23, 59, 59, 999);
-  const contractStart = new Date(startDate).setHours(0, 0, 0, 0);
-  const contractEnd = new Date(endDate).setHours(23, 59, 59, 999);
 
-  const effectiveStart = contractStart > periodStart ? contractStart : periodStart;
-  const effectiveEnd = contractEnd < periodEnd ? contractEnd : periodEnd;
+  const sStr = String(startDate).slice(0, 10);
+  const eStr = endDate ? String(endDate).slice(0, 10) : '9999-12-31';
 
-  if (effectiveStart > effectiveEnd) return 0;
+  const mStr = String(month).padStart(2, '0');
+  const monthStart = `${year}-${mStr}-01`;
+  const monthEnd = `${year}-${mStr}-${String(totalDays).padStart(2, '0')}`;
 
-  const activeDays = Math.round((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24));
+  if (sStr > monthEnd || eStr < monthStart) return 0;
+
+  const effStartStr = sStr > monthStart ? sStr : monthStart;
+  const effEndStr = eStr < monthEnd ? eStr : monthEnd;
+
+  const effStartDay = parseInt(effStartStr.split('-')[2], 10);
+  const effEndDay = parseInt(effEndStr.split('-')[2], 10);
+
+  const activeDays = Math.max(0, effEndDay - effStartDay + 1);
 
   if (activeDays >= totalDays) return rent;
   return Math.round((rent / totalDays) * activeDays * 100) / 100;
