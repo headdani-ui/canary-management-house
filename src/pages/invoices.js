@@ -5,7 +5,7 @@ import { store } from '../store.js';
 import { navigate } from '../router.js';
 import { openModal, closeModal, confirmDialog } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
-import { generateId, formatCurrency, formatDate, statusBadge, formatMonth, calculateProRataRent, calculateCostAllocation } from '../utils.js';
+import { generateId, formatCurrency, formatDate, statusBadge, formatMonth, calculateProRataRent, calculateCostAllocation, daysInMonth } from '../utils.js';
 
 export function renderInvoices(params) {
   if (params && params[0] === 'pending') return renderFilteredInvoices('pendiente');
